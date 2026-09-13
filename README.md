@@ -6,7 +6,6 @@ THis is a backend platform connecting **patients**, **doctors**, and **pharmacie
 
 A core design goal is **accessibility for older adults**, who are often the heaviest users of prescription medication but the least comfortable with complex apps. The system is built so that a simple, low-friction frontend (large text, minimal steps, guardian/family-assisted accounts, phone-call/SMS fallback options) can sit on top of it — the backend supports this by keeping flows short, statuses always human-readable, and every action reversible or explainable via the Q&A/notification system.
 
----
 
 ## Core Features & API Scope
 
@@ -43,7 +42,6 @@ A core design goal is **accessibility for older adults**, who are often the heav
 - Designed to support multiple channels (in-app, SMS, email) so older users aren't dependent on checking an app
 - `GET /notifications`, `PATCH /notifications/:id/read`
 
----
 
 ## Tech Stack
 
@@ -71,7 +69,6 @@ A core design goal is **accessibility for older adults**, who are often the heav
 | **Delivery** | Rider assignment, tracking status, ETA (for delivery orders only) |
 | **Question / Answer** | Patient-submitted question, answered by a verified professional |
 
----
 
 ## ♿ Accessibility Focus: Designed to Help Older People
 
@@ -81,7 +78,7 @@ A core design goal is **accessibility for older adults**, who are often the heav
 - **Q&A as a support line** — older patients can ask basic questions ("how do I take this?") without needing to navigate a complex UI
 - **Minimal required steps** — prescription-to-pharmacy routing (doctor-initiated) reduces the number of actions an elderly patient has to take themselves
 
----
+
 
 ## 🔄 Prescription & Order Flow
 
@@ -91,5 +88,5 @@ A core design goal is **accessibility for older adults**, who are often the heav
 4. **Order status progresses**: `placed → confirmed → ready/out for delivery → completed`
 5. *(Alternative path)* Patient can **search nearest pharmacy with stock** directly and place an order themselves
 
----
+
 
