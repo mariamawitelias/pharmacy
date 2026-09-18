@@ -1,0 +1,175 @@
+// =============================================================
+// Medireach Prisma Schema
+// =============================================================
+// Person 1: Auth, Users, Pharmacies, Medicines, Inventory, Geolocation
+// Person 2: Prescriptions, Orders, Delivery
+// Person 3: Q&A, Notifications, Accessibility
+// =============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// =============================================================
+// === Person 1 — Auth, Users, Pharmacies, Medicines, Inventory
+// TODO(Person 1): Implement these models fully
+// =============================================================
+
+enum Role {
+  PATIENT
+  DOCTOR
+  PHARMACIST
+  RIDER
+  ADMIN
+}
+
+// ⚠️ TEMPORARY PLACEHOLDER — owned by Person 1, will be REPLACED by their real models.
+// Do NOT build additional features on these fields — confirm with Person 1 first.
+model User {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  password  String
+  firstName String
+  lastName  String
+  role      Role
+  phone     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // TODO(Person 1): Add Patient/Doctor/Pharmacist/Rider profile relations
+  // TODO(Person 1): Add caregiver/family link support
+
+  // ⚠️ TEMPORARY INVERSE RELATIONS — Person 3 (Q&A/Notifications) needs these.
+  // Person 1: please preserve or migrate when you finalize the User model.
+  questionsAsPatient   Question[] @relation("PatientQuestions")
+  questionsAsClaimedBy Question[] @relation("ClaimedQuestions")
+  answersAsPharmacist  Answer[]   @relation("PharmacistAnswers")
+  notifications        Notification[]
+}
+
+// TODO(Person 1): model Patient { ... extends User? or one-to-one? }
+// TODO(Person 1): model Doctor { ... }
+// TODO(Person 1): model Prescription { ... }
+
+// =============================================================
+// === Person 1 — (continued) Pharmacies, Medicines, Inventory ==
+// =============================================================
+
+// ⚠️ TEMPORARY PLACEHOLDER — owned by Person 1, will be REPLACED by their real models.
+// Do NOT build additional features on these fields — confirm with Person 1 first.
+// (Present only so Person 3's Question.medicineId FK and seed script can validate.)
+model Pharmacy {
+  id        Int      @id @default(autoincrement())
+  name      String
+  address   String?
+  latitude  Float?
+  longitude Float?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // TODO(Person 1): operating hours, verification status, inventory relation
+}
+
+// ⚠️ TEMPORARY PLACEHOLDER — owned by Person 1, will be REPLACED by their real models.
+// Do NOT build additional features on these fields — confirm with Person 1 first.
+// (Present only so Person 3's Question.medicineId FK and seed script can validate.)
+model Medicine {
+  id                  Int      @id @default(autoincrement())
+  name                String
+  genericName         String?
+  form                String?
+  prescriptionRequired Boolean  @default(true)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  // TODO(Person 1): inventory relation
+
+  // ⚠️ TEMPORARY INVERSE RELATION — Person 3 (Q&A) needs this.
+  // Person 1: please preserve or migrate when you finalize the Medicine model.
+  questionsAsMedicine Question[]
+}
+
+// TODO(Person 1): model Inventory { pharmacyId, medicineId, stock, price, ... }
+
+// =============================================================
+// === Person 2 — Prescriptions, Orders, Delivery ==============
+// TODO(Person 2): Implement these models fully
+// =============================================================
+
+// TODO(Person 2): model Order { ... }
+// TODO(Person 2): model Delivery { ... }
+
+// =============================================================
+// === Person 3 — Q&A, Notifications ===========================
+// =============================================================
+
+enum QuestionStatus {
+  OPEN
+  CLAIMED
+  ANSWERED
+  CLOSED
+}
+
+model Question {
+  id             Int            @id @default(autoincrement())
+  patientId      Int
+  medicineId     Int?
+  prescriptionId Int?
+  text           String
+  status         QuestionStatus @default(OPEN)
+  claimedById    Int?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  patient   User     @relation("PatientQuestions", fields: [patientId], references: [id])
+  claimedBy User?    @relation("ClaimedQuestions", fields: [claimedById], references: [id])
+  medicine  Medicine? @relation(fields: [medicineId], references: [id])
+  // TODO(Person 1): add prescription relation when Prescription model exists
+  // prescription Prescription? @relation(fields: [prescriptionId], references: [id])
+  answer    Answer?
+}
+
+model Answer {
+  id           Int      @id @default(autoincrement())
+  questionId   Int      @unique
+  pharmacistId Int
+  text         String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  pharmacist User     @relation("PharmacistAnswers", fields: [pharmacistId], references: [id])
+}
+
+enum NotificationType {
+  QUESTION_ANSWERED
+  PRESCRIPTION_UPDATED
+  ORDER_UPDATED
+  SYSTEM
+}
+
+enum NotificationChannel {
+  IN_APP
+  SMS
+  EMAIL
+}
+
+model Notification {
+  id        Int                 @id @default(autoincrement())
+  userId    Int
+  type      NotificationType
+  message   String
+  data      Json?
+  channel   NotificationChannel @default(IN_APP)
+  readAt    DateTime?
+  createdAt DateTime            @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt])
+}
