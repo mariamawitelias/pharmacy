@@ -96,8 +96,155 @@ model Medicine {
 
 // TODO(Person 1): model Inventory { pharmacyId, medicineId, stock, price, ... }
 
+
+
+
+
+
 // =============================================================
 // === Person 2 — Prescriptions, Orders, Delivery ==============
+
+
+
+
+// ---------- PRESCRIPTION ----------
+enum PrescriptionStatus {
+  PENDING     // created, not yet sent
+  SENT        // sent to pharmacy, awaiting pharmacy response
+  CONFIRMED   // pharmacy accepted stock exists
+  READY       // pharmacy has prepared it
+  REJECTED    // pharmacy rejected (out of stock)
+  CANCELLED   // doctor or patient cancelled
+}
+
+model Prescription {
+  id             Int                @id @default(autoincrement())
+  doctorId       Int
+  patientId      Int
+  pharmacyId     Int?
+  status         PrescriptionStatus @default(PENDING)
+  notes          String?
+  rejectionReason String?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+  sentAt         DateTime?
+  confirmedAt    DateTime?
+  readyAt        DateTime?
+
+  doctor    User               @relation("DoctorPrescriptions", fields: [doctorId], references: [id])
+  patient   User               @relation("PatientPrescriptions", fields: [patientId], references: [id])
+  pharmacy  Pharmacy?          @relation("PharmacyPrescriptions", fields: [pharmacyId], references: [id])
+  items     PrescriptionItem[]
+  order     Order?
+  questions Question[]
+
+  @@index([patientId])
+  @@index([doctorId])
+  @@index([pharmacyId])
+}
+
+model PrescriptionItem {
+  id             Int          @id @default(autoincrement())
+  prescriptionId Int
+  medicineId     Int
+  dosage         String // e.g. "500mg"
+  frequency      String // e.g. "3x daily"
+  duration       String // e.g. "7 days"
+  quantity       Int
+  instructions   String?
+
+  prescription Prescription @relation(fields: [prescriptionId], references: [id], onDelete: Cascade)
+  medicine     Medicine     @relation(fields: [medicineId], references: [id])
+
+  @@index([prescriptionId])
+}
+
+// ---------- ORDER ----------
+enum FulfillmentType {
+  PICKUP
+  DELIVERY
+}
+
+enum OrderStatus {
+  PLACED
+  CONFIRMED
+  PREPARING
+  READY
+  OUT_FOR_DELIVERY
+  COMPLETED
+  CANCELLED
+}
+
+model Order {
+  id                 Int             @id @default(autoincrement())
+  prescriptionId     Int             @unique
+  patientId          Int
+  pharmacyId         Int
+  fulfillment        FulfillmentType
+  status             OrderStatus     @default(PLACED)
+  totalAmount        Float?
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+  confirmedAt        DateTime?
+  readyAt            DateTime?
+  dispatchedAt       DateTime?
+  completedAt        DateTime?
+  cancelledAt        DateTime?
+  cancellationReason String?
+
+  prescription Prescription @relation(fields: [prescriptionId], references: [id])
+  patient      User         @relation("PatientOrders", fields: [patientId], references: [id])
+  pharmacy     Pharmacy     @relation("PharmacyOrders", fields: [pharmacyId], references: [id])
+  items        OrderItem[]
+  delivery     Delivery?
+
+  @@index([patientId])
+  @@index([pharmacyId])
+}
+
+model OrderItem {
+  id         Int      @id @default(autoincrement())
+  orderId    Int
+  medicineId Int
+  quantity   Int
+  unitPrice  Float
+  subtotal   Float
+
+  order    Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  medicine Medicine @relation(fields: [medicineId], references: [id])
+
+  @@index([orderId])
+}
+
+// ---------- DELIVERY ----------
+enum DeliveryStatus {
+  ASSIGNED
+  PICKED_UP
+  IN_TRANSIT
+  DELIVERED
+  FAILED
+}
+
+model Delivery {
+  id          Int            @id @default(autoincrement())
+  orderId     Int            @unique
+  riderId     Int?
+  status      DeliveryStatus @default(ASSIGNED)
+  address     String
+  lat         Float?
+  lng         Float?
+  assignedAt  DateTime       @default(now())
+  pickedUpAt  DateTime?
+  deliveredAt DateTime?
+  notes       String?
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  rider User? @relation("RiderDeliveries", fields: [riderId], references: [id])
+
+  @@index([riderId])
+}
+
+
 // TODO(Person 2): Implement these models fully
 // =============================================================
 
