@@ -50,6 +50,13 @@ model User {
   questionsAsClaimedBy Question[] @relation("ClaimedQuestions")
   answersAsPharmacist  Answer[]   @relation("PharmacistAnswers")
   notifications        Notification[]
+
+  // ⚠️ TEMPORARY INVERSE RELATIONS — Person 2 (Prescriptions/Orders/Delivery) needs these.
+  // Person 1: please preserve or migrate when you finalize the User model.
+  prescriptionsAsDoctor  Prescription[] @relation("DoctorPrescriptions")
+  prescriptionsAsPatient Prescription[] @relation("PatientPrescriptions")
+  ordersAsPatient        Order[]        @relation("PatientOrders")
+  deliveriesAsRider      Delivery[]     @relation("RiderDeliveries")
 }
 
 // TODO(Person 1): model Patient { ... extends User? or one-to-one? }
@@ -73,6 +80,11 @@ model Pharmacy {
   updatedAt DateTime @updatedAt
 
   // TODO(Person 1): operating hours, verification status, inventory relation
+
+  // ⚠️ TEMPORARY INVERSE RELATIONS — Person 2 (Prescriptions/Orders/Delivery) needs these.
+  // Person 1: please preserve or migrate when you finalize the Pharmacy model.
+  prescriptions Prescription[] @relation("PharmacyPrescriptions")
+  orders        Order[]        @relation("PharmacyOrders")
 }
 
 // ⚠️ TEMPORARY PLACEHOLDER — owned by Person 1, will be REPLACED by their real models.
@@ -92,6 +104,11 @@ model Medicine {
   // ⚠️ TEMPORARY INVERSE RELATION — Person 3 (Q&A) needs this.
   // Person 1: please preserve or migrate when you finalize the Medicine model.
   questionsAsMedicine Question[]
+
+  // ⚠️ TEMPORARY INVERSE RELATIONS — Person 2 (Prescriptions/Orders/Delivery) needs these.
+  // Person 1: please preserve or migrate when you finalize the Medicine model.
+  prescriptionItems PrescriptionItem[]
+  orderItems        OrderItem[]
 }
 
 // TODO(Person 1): model Inventory { pharmacyId, medicineId, stock, price, ... }
@@ -275,9 +292,8 @@ model Question {
 
   patient   User     @relation("PatientQuestions", fields: [patientId], references: [id])
   claimedBy User?    @relation("ClaimedQuestions", fields: [claimedById], references: [id])
-  medicine  Medicine? @relation(fields: [medicineId], references: [id])
-  // TODO(Person 1): add prescription relation when Prescription model exists
-  // prescription Prescription? @relation(fields: [prescriptionId], references: [id])
+  medicine   Medicine?    @relation(fields: [medicineId], references: [id])
+  prescription Prescription? @relation(fields: [prescriptionId], references: [id])
   answer    Answer?
 }
 
