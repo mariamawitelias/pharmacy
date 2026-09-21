@@ -1,0 +1,177 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+
+enum Role {
+  PATIENT
+  DOCTOR
+  PHARMACIST
+  RIDER
+  ADMIN
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  phone        String?
+  passwordHash String
+  fullName     String
+  role         Role
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  patient      Patient?
+  doctor       Doctor?
+
+  
+  pharmacyId   String?
+  pharmacistAt Pharmacy? @relation("PharmacyStaff", fields: [pharmacyId], references: [id])
+
+  caringFor    Patient[] @relation("Caregiver")
+
+  questionsAsPatient   Question[]     @relation("PatientQuestions")
+  questionsAsClaimedBy Question[]     @relation("ClaimedQuestions")
+  answersAsPharmacist  Answer[]       @relation("PharmacistAnswers")
+  notifications        Notification[]
+}
+
+model Patient {
+  userId              String   @id
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  address             String?
+  lat                 Float?
+  lng                 Float?
+
+  preferredPharmacyId String?
+  preferredPharmacy   Pharmacy? @relation(fields: [preferredPharmacyId], references: [id])
+
+  caregiverUserId     String?
+  caregiver           User?    @relation("Caregiver", fields: [caregiverUserId], references: [id])
+
+}
+
+model Doctor {
+  userId       String  @id
+  user         User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  hospitalName String
+  specialty    String?
+
+}
+
+model Pharmacy {
+  id        String   @id @default(uuid())
+  name      String
+  address   String
+  lat       Float
+  lng       Float
+  phone     String?
+  openTime  String?
+  closeTime String?
+  verified  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  staff     User[]      @relation("PharmacyStaff")
+  inventory Inventory[]
+  patients  Patient[]
+
+}
+
+model Medicine {
+  id                   String   @id @default(uuid())
+  name                 String
+  genericName          String?
+  form                 String
+  strength             String?
+  requiresPrescription Boolean  @default(true)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  inventory Inventory[]
+  questions Question[]
+
+  @@unique([name, strength, form])
+}
+
+model Inventory {
+  pharmacyId String
+  medicineId String
+  quantity   Int      @default(0)
+  price      Decimal  @db.Decimal(10, 2)
+  updatedAt  DateTime @updatedAt
+
+  pharmacy Pharmacy @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+  medicine Medicine @relation(fields: [medicineId], references: [id], onDelete: Cascade)
+
+  @@id([pharmacyId, medicineId])
+  @@index([medicineId])
+}
+
+enum QuestionStatus {
+  OPEN
+  CLAIMED
+  ANSWERED
+  CLOSED
+}
+
+model Question {
+  id             String         @id @default(uuid())
+  patientId      String
+  medicineId     String?
+  prescriptionId String?
+  text           String
+  status         QuestionStatus @default(OPEN)
+  claimedById    String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  patient   User      @relation("PatientQuestions", fields: [patientId], references: [id])
+  claimedBy User?     @relation("ClaimedQuestions", fields: [claimedById], references: [id])
+  medicine  Medicine? @relation(fields: [medicineId], references: [id])
+  answer    Answer?
+}
+
+model Answer {
+  id           String   @id @default(uuid())
+  questionId   String   @unique
+  pharmacistId String
+  text         String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  pharmacist User     @relation("PharmacistAnswers", fields: [pharmacistId], references: [id])
+}
+
+enum NotificationType {
+  QUESTION_ANSWERED
+  PRESCRIPTION_UPDATED
+  ORDER_UPDATED
+  SYSTEM
+}
+
+enum NotificationChannel {
+  IN_APP
+  SMS
+  EMAIL
+}
+
+model Notification {
+  id        String              @id @default(uuid())
+  userId    String
+  type      NotificationType
+  message   String
+  data      Json?
+  channel   NotificationChannel @default(IN_APP)
+  readAt    DateTime?
+  createdAt DateTime            @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt])
+}
