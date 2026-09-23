@@ -19,7 +19,7 @@ export const prescriptionItemSchema = z.object({
 
 export const createPrescriptionSchema = z.object({
   patientId: idString,
-  pharmacyId: idString.optional(),
+  pharmacyId: idString,
   notes: z.string().trim().max(1000).optional(),
   items: z.array(prescriptionItemSchema).min(1, 'At least one item is required.'),
 });
@@ -60,7 +60,17 @@ export const notifyTargetsParamsSchema = z.object({
 export const createOrderSchema = z
   .object({
     prescriptionId: idString,
+    pharmacyId: idString,
     fulfillment: z.enum(['PICKUP', 'DELIVERY']),
+    items: z
+      .array(
+        z.object({
+          medicineId: idString,
+          quantity: z.number().int().positive(),
+          unitPrice: z.number().nonnegative(),
+        }),
+      )
+      .min(1, 'At least one order item is required.'),
     deliveryAddress: z.string().trim().min(5).max(500).optional(),
     deliveryLat: z.number().min(-90).max(90).optional(),
     deliveryLng: z.number().min(-180).max(180).optional(),
