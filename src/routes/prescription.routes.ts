@@ -1,4 +1,5 @@
 import { Router, Request } from "express";
+import { PrismaClient } from "@prisma/client";
 import { auth as requireAuth, requireRole, validate } from "../middleware/auth.js";
 import ApiError from "../utils/ApiError.js";
 import {
@@ -25,13 +26,7 @@ declare global {
 }
 
 const router = Router();
-
-const createUuid = () =>
-  "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (char) => {
-    const random = Math.random() * 16 | 0;
-    const value = char === "x" ? random : (random & 0x3) | 0x8;
-    return value.toString(16);
-  });
+const prisma = new PrismaClient();
 
 router.post(
   "/",
@@ -41,11 +36,21 @@ router.post(
   async (req: Request, res, next) => {
     try {
       const payload = req.body as CreatePrescriptionInput;
+      const prescription = await prisma.prescription.create({
+        data: {
+          doctorId: req.user!.userId,
+          patientId: payload.patientId,
+          pharmacyId: payload.pharmacyId,
+          notes: payload.notes,
+          items: {
+            create: payload.items,
+          },
+        },
+      });
 
       res.status(201).json({
         data: {
-          id: createUuid(),
-          ...payload,
+          ...prescription,
           createdBy: req.user?.userId,
         },
         message: "Prescription created successfully.",
