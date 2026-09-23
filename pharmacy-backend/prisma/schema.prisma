@@ -1,0 +1,347 @@
+// =============================================================
+// Medireach Prisma Schema
+// =============================================================
+// Person 1: Auth, Users, Pharmacies, Medicines, Inventory, Geolocation
+// Person 2: Prescriptions, Orders, Delivery
+// Person 3: Q&A, Notifications, Accessibility
+// =============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// Prisma 7: connection URL lives in prisma.config.ts (datasource.url);
+// runtime connections use the @prisma/adapter-pg driver adapter in
+// src/lib/prisma.ts. The `url` property is no longer allowed here.
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  PATIENT
+  DOCTOR
+  PHARMACIST
+  RIDER
+  ADMIN
+}
+
+// =============================================================
+// === Person 1 — Auth, Users, Pharmacies, Medicines, Inventory
+// =============================================================
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  phone        String?
+  passwordHash String
+  fullName     String
+  role         Role
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  patient      Patient?
+  doctor       Doctor?
+
+  pharmacyId   String?
+  pharmacistAt Pharmacy? @relation("PharmacyStaff", fields: [pharmacyId], references: [id])
+
+  caringFor    Patient[] @relation("Caregiver")
+
+  // ⚠️ Person 3 (Q&A/Notifications) inverse relations
+  questionsAsPatient   Question[]     @relation("PatientQuestions")
+  questionsAsClaimedBy Question[]     @relation("ClaimedQuestions")
+  answersAsPharmacist  Answer[]       @relation("PharmacistAnswers")
+  notifications        Notification[]
+
+  // Person 2 (Prescriptions/Orders/Delivery) inverse relations
+  prescriptionsAsDoctor  Prescription[] @relation("DoctorPrescriptions")
+  prescriptionsAsPatient Prescription[] @relation("PatientPrescriptions")
+  ordersAsPatient        Order[]        @relation("PatientOrders")
+  deliveriesAsRider      Delivery[]     @relation("RiderDeliveries")
+}
+
+model Patient {
+  userId              String    @id
+  user                User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  address             String?
+  lat                 Float?
+  lng                 Float?
+
+  preferredPharmacyId String?
+  preferredPharmacy   Pharmacy? @relation(fields: [preferredPharmacyId], references: [id])
+
+  caregiverUserId     String?
+  caregiver           User?     @relation("Caregiver", fields: [caregiverUserId], references: [id])
+}
+
+model Doctor {
+  userId       String  @id
+  user         User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  hospitalName String
+  specialty    String?
+}
+
+model Pharmacy {
+  id        String    @id @default(uuid())
+  name      String
+  address   String
+  lat       Float
+  lng       Float
+  phone     String?
+  openTime  String?
+  closeTime String?
+  verified  Boolean   @default(false)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  staff     User[]      @relation("PharmacyStaff")
+  inventory Inventory[]
+  patients  Patient[]
+
+  // Person 2 inverse relations
+  prescriptions Prescription[] @relation("PharmacyPrescriptions")
+  orders        Order[]        @relation("PharmacyOrders")
+}
+
+model Medicine {
+  id                   String    @id @default(uuid())
+  name                 String
+  genericName          String?
+  form                 String
+  strength             String?
+  requiresPrescription Boolean   @default(true)
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  inventory Inventory[]
+  questions Question[]
+
+  // Person 2 inverse relations
+  prescriptionItems PrescriptionItem[]
+  orderItems        OrderItem[]
+
+  @@unique([name, strength, form])
+}
+
+model Inventory {
+  pharmacyId String
+  medicineId String
+  quantity   Int      @default(0)
+  price      Decimal  @db.Decimal(10, 2)
+  updatedAt  DateTime @updatedAt
+
+  pharmacy Pharmacy @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+  medicine Medicine @relation(fields: [medicineId], references: [id], onDelete: Cascade)
+
+  @@id([pharmacyId, medicineId])
+  @@index([medicineId])
+}
+
+// =============================================================
+// === Person 2 — Prescriptions, Orders, Delivery ==============
+// Ported verbatim from main (Int IDs → uuid) so this branch
+// carries the full model set. Person 2 owns these models.
+// =============================================================
+
+enum PrescriptionStatus {
+  PENDING
+  SENT
+  CONFIRMED
+  READY
+  REJECTED
+  CANCELLED
+}
+
+model Prescription {
+  id              String             @id @default(uuid())
+  doctorId        String
+  patientId       String
+  pharmacyId      String?
+  status          PrescriptionStatus @default(PENDING)
+  notes           String?
+  rejectionReason String?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  sentAt          DateTime?
+  confirmedAt     DateTime?
+  readyAt         DateTime?
+
+  doctor    User               @relation("DoctorPrescriptions", fields: [doctorId], references: [id])
+  patient   User               @relation("PatientPrescriptions", fields: [patientId], references: [id])
+  pharmacy  Pharmacy?          @relation("PharmacyPrescriptions", fields: [pharmacyId], references: [id])
+  items     PrescriptionItem[]
+  order     Order?
+  questions Question[]
+
+  @@index([patientId])
+  @@index([doctorId])
+  @@index([pharmacyId])
+}
+
+model PrescriptionItem {
+  id             String   @id @default(uuid())
+  prescriptionId String
+  medicineId     String
+  dosage         String
+  frequency      String
+  duration       String
+  quantity       Int
+  instructions   String?
+
+  prescription Prescription @relation(fields: [prescriptionId], references: [id], onDelete: Cascade)
+  medicine     Medicine     @relation(fields: [medicineId], references: [id])
+
+  @@index([prescriptionId])
+}
+
+enum FulfillmentType {
+  PICKUP
+  DELIVERY
+}
+
+enum OrderStatus {
+  PLACED
+  CONFIRMED
+  PREPARING
+  READY
+  OUT_FOR_DELIVERY
+  COMPLETED
+  CANCELLED
+}
+
+model Order {
+  id                 String          @id @default(uuid())
+  prescriptionId     String          @unique
+  patientId          String
+  pharmacyId         String
+  fulfillment        FulfillmentType
+  status             OrderStatus     @default(PLACED)
+  totalAmount        Float?
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+  confirmedAt        DateTime?
+  readyAt            DateTime?
+  dispatchedAt       DateTime?
+  completedAt        DateTime?
+  cancelledAt        DateTime?
+  cancellationReason String?
+
+  prescription Prescription @relation(fields: [prescriptionId], references: [id])
+  patient      User         @relation("PatientOrders", fields: [patientId], references: [id])
+  pharmacy     Pharmacy     @relation("PharmacyOrders", fields: [pharmacyId], references: [id])
+  items        OrderItem[]
+  delivery     Delivery?
+
+  @@index([patientId])
+  @@index([pharmacyId])
+}
+
+model OrderItem {
+  id         String  @id @default(uuid())
+  orderId    String
+  medicineId String
+  quantity   Int
+  unitPrice  Float
+  subtotal   Float
+
+  order    Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  medicine Medicine @relation(fields: [medicineId], references: [id])
+
+  @@index([orderId])
+}
+
+enum DeliveryStatus {
+  ASSIGNED
+  PICKED_UP
+  IN_TRANSIT
+  DELIVERED
+  FAILED
+}
+
+model Delivery {
+  id          String         @id @default(uuid())
+  orderId     String         @unique
+  riderId     String?
+  status      DeliveryStatus @default(ASSIGNED)
+  address     String
+  lat         Float?
+  lng         Float?
+  assignedAt  DateTime       @default(now())
+  pickedUpAt  DateTime?
+  deliveredAt DateTime?
+  notes       String?
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  rider User? @relation("RiderDeliveries", fields: [riderId], references: [id])
+
+  @@index([riderId])
+}
+
+// =============================================================
+// === Person 3 — Q&A, Notifications ===========================
+// =============================================================
+
+enum QuestionStatus {
+  OPEN
+  CLAIMED
+  ANSWERED
+  CLOSED
+}
+
+model Question {
+  id             String         @id @default(uuid())
+  patientId      String
+  medicineId     String?
+  prescriptionId String?
+  text           String
+  status         QuestionStatus @default(OPEN)
+  claimedById    String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  patient   User      @relation("PatientQuestions", fields: [patientId], references: [id])
+  claimedBy User?     @relation("ClaimedQuestions", fields: [claimedById], references: [id])
+  medicine  Medicine? @relation(fields: [medicineId], references: [id])
+  prescription Prescription? @relation(fields: [prescriptionId], references: [id])
+  answer    Answer?
+}
+
+model Answer {
+  id           String   @id @default(uuid())
+  questionId   String   @unique
+  pharmacistId String
+  text         String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  pharmacist User     @relation("PharmacistAnswers", fields: [pharmacistId], references: [id])
+}
+
+enum NotificationType {
+  QUESTION_ANSWERED
+  PRESCRIPTION_UPDATED
+  ORDER_UPDATED
+  SYSTEM
+}
+
+enum NotificationChannel {
+  IN_APP
+  SMS
+  EMAIL
+}
+
+model Notification {
+  id        String              @id @default(uuid())
+  userId    String
+  type      NotificationType
+  message   String
+  data      Json?
+  channel   NotificationChannel @default(IN_APP)
+  readAt    DateTime?
+  createdAt DateTime            @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt])
+}
