@@ -65,6 +65,27 @@ router.post(
         }
       }
 
+      // Same existence check as medicineId — a question may optionally be
+      // tied to a prescription, and it must be the patient's OWN one.
+      if (prescriptionId && prescriptionId.length > 0) {
+        const prescription = await prisma.prescription.findUnique({
+          where: { id: prescriptionId },
+          select: { patientId: true },
+        });
+        if (!prescription) {
+          throw new AppError(
+            404,
+            "We couldn't find that prescription. Please check it, or just send your question without choosing a prescription."
+          );
+        }
+        if (prescription.patientId !== req.user!.userId) {
+          throw new AppError(
+            403,
+            "You can only ask questions about your own prescriptions."
+          );
+        }
+      }
+
       const question = await prisma.question.create({
         data: {
           patientId: req.user!.userId,
@@ -289,6 +310,67 @@ router.post(
         },
         message:
           "Answer sent. The patient has been notified that a reply is ready.",
+      });
+    } catch (e) {
+      next(e);
+    }
+  }
+);
+
+/* ------------------------------------------------------
+ *  PATCH /questions/:id/close
+ *  Completes the status machine: OPEN/ANSWERED → CLOSED.
+ *  - The patient who asked may close their own question
+ *    (withdraw an open one, or acknowledge an answered one).
+ *  - Admins may close any question.
+ *  - CLAIMED cannot be closed: a pharmacist is actively
+ *    working on it. Already-CLOSED returns 409.
+ * ------------------------------------------------------ */
+type CloseReq = Request<QuestionIdParam>;
+router.patch(
+  "/:id/close",
+  requireAuth,
+  validateParams(questionIdParamSchema),
+  async (req: CloseReq, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.validatedParams as QuestionIdParam;
+      const user = req.user!;
+
+      const question = await prisma.question.findUnique({
+        where: { id },
+        select: { patientId: true, status: true },
+      });
+      if (!question) {
+        throw new AppError(404, "That question could not be found.");
+      }
+
+      const isOwner = question.patientId === user.userId;
+      const isAdmin = user.role === "ADMIN";
+      if (!isOwner && !isAdmin) {
+        throw new AppError(403, "You can only close your own questions.");
+      }
+
+      if (question.status === QuestionStatus.CLOSED) {
+        throw new AppError(409, "This question is already closed.");
+      }
+      if (question.status === QuestionStatus.CLAIMED) {
+        throw new AppError(
+          409,
+          "A pharmacist is reviewing this question right now, so it cannot be closed yet. Please wait for the reply."
+        );
+      }
+
+      const closed = await prisma.question.update({
+        where: { id },
+        data: { status: QuestionStatus.CLOSED },
+        include: QUESTION_INCLUDES,
+      });
+
+      res.json({
+        data: mapQuestion(closed),
+        message: isOwner
+          ? "Your question has been closed."
+          : "The question has been closed.",
       });
     } catch (e) {
       next(e);
