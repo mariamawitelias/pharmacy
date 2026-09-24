@@ -13,3 +13,10 @@ coverage/
 .turbo/
 prisma/migrations/
 !prisma/migrations/migration_lock.toml
+=======
+node_modules
+.env
+.agents
+.claude
+.windsurf
+

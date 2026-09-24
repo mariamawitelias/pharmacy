@@ -3,18 +3,14 @@
     "target": "ES2022",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
-    "outDir": "./dist",
-    // No explicit rootDir: include covers both src/ and prisma/ (seed.ts),
-    // so the common root is the package root → dist/src/... + dist/prisma/...
+    "outDir": "dist",
+    "rootDir": "src",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "resolveJsonModule": true,
-    "declaration": false,
-    "sourceMap": true,
-    "types": ["node", "express"]
+    "resolveJsonModule": true
   },
-  "include": ["src/**/*.ts", "prisma/**/*.ts", "src/types/**/*.d.ts"],
+  "include": ["src/**/*.ts"],
   "exclude": ["node_modules", "dist"]
 }

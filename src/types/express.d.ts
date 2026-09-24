@@ -8,7 +8,6 @@ declare global {
         role: Role;
       };
       validatedQuery?: any;
-      validatedParams?: any;
     }
   }
 }

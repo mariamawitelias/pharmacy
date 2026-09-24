@@ -7,7 +7,6 @@ export class AppError extends Error {
   constructor(status: number, message: string) {
     super(message);
     this.status = status;
-    this.name = "AppError";
   }
 }
 
@@ -22,26 +21,19 @@ export const errorHandler = (
   }
 
   if (err instanceof ZodError) {
-    return res
-      .status(400)
-      .json({ error: "Validation failed", details: err.issues });
+    return res.status(400).json({ error: "Validation failed", details: err.issues });
   }
 
   if (err instanceof Prisma.PrismaClientKnownRequestError) {
     if (err.code === "P2002") {
-      const fields =
-        ((err.meta?.target as string[] | undefined)?.join(", ")) ?? "field";
-      return res
-        .status(409)
-        .json({ error: `A record with this ${fields} already exists` });
+      const fields = (err.meta?.target as string[] | undefined)?.join(", ") ?? "field";
+      return res.status(409).json({ error: `A record with this ${fields} already exists` });
     }
     if (err.code === "P2025") {
       return res.status(404).json({ error: "Record not found" });
     }
     if (err.code === "P2003") {
-      return res
-        .status(400)
-        .json({ error: "Invalid reference — related record does not exist" });
+      return res.status(400).json({ error: "Invalid reference — related record does not exist" });
     }
   }
 
