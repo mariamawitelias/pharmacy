@@ -1,5 +1,6 @@
 import { Router, Request } from "express";
-import { auth as requireAuth, requireRole, validate } from "../middleware/auth.js";
+import { requireAuth, requireRole } from "../middleware/auth.js";
+import { validate, validateParams } from "../middleware/validate.js";
 import {
   createOrderSchema,
   updateOrderStatusSchema,
@@ -47,7 +48,7 @@ router.post(
   "/",
   requireAuth,
   requireRole("PATIENT"),
-  validate({ body: createOrderSchema, params: undefined, query: undefined }),
+  validate(createOrderSchema),
   async (req: Request, res, next) => {
     try {
       const payload = req.body as CreateOrderInput;
@@ -66,10 +67,11 @@ router.get(
   "/:id",
   requireAuth,
   requireRole("PATIENT", "PHARMACIST", "RIDER", "ADMIN"),
-  validate({ body: undefined, params: idParamSchema, query: undefined }),
+  validateParams(idParamSchema),
   async (req: Request, res, next) => {
     try {
-      res.json({ data: { id: req.params.id, requestedBy: req.user?.userId } });
+      const { id } = req.validatedParams as { id: string };
+      res.json({ data: { id, requestedBy: req.user?.userId } });
     } catch (error) {
       next(error);
     }
@@ -82,10 +84,11 @@ router.get(
   "/:id/track",
   requireAuth,
   requireRole("PATIENT", "PHARMACIST", "RIDER", "ADMIN"),
-  validate({ body: undefined, params: idParamSchema, query: undefined }),
+  validateParams(idParamSchema),
   async (req: Request, res, next) => {
     try {
-      res.json({ data: { id: req.params.id, status: "PLACED", timeline: [] } });
+      const { id } = req.validatedParams as { id: string };
+      res.json({ data: { id, status: "PLACED", timeline: [] } });
     } catch (error) {
       next(error);
     }
@@ -100,12 +103,14 @@ router.patch(
   "/:id/status",
   requireAuth,
   requireRole("PHARMACIST", "ADMIN"),
-  validate({ body: updateOrderStatusSchema, params: idParamSchema, query: undefined }),
+  validateParams(idParamSchema),
+  validate(updateOrderStatusSchema),
   async (req: Request, res, next) => {
     try {
+      const { id } = req.validatedParams as { id: string };
       const { status, reason } = req.body as UpdateOrderStatusInput;
       res.json({
-        data: { id: req.params.id, status, reason, updatedBy: req.user?.userId },
+        data: { id, status, reason, updatedBy: req.user?.userId },
         message: "Order status updated.",
       });
     } catch (error) {
@@ -120,12 +125,14 @@ router.patch(
   "/:id/delivery/status",
   requireAuth,
   requireRole("RIDER"),
-  validate({ body: updateDeliveryStatusSchema, params: idParamSchema, query: undefined }),
+  validateParams(idParamSchema),
+  validate(updateDeliveryStatusSchema),
   async (req: Request, res, next) => {
     try {
+      const { id } = req.validatedParams as { id: string };
       const { status } = req.body as UpdateDeliveryStatusInput;
       res.json({
-        data: { orderId: req.params.id, status, updatedBy: req.user?.userId },
+        data: { orderId: id, status, updatedBy: req.user?.userId },
         message: "Delivery status updated.",
       });
     } catch (error) {

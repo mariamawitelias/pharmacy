@@ -10,6 +10,9 @@ import pharmacyRoutes from "./routes/pharmacy.routes.js";
 import searchRoutes from "./routes/search.routes.js";
 import questionRoutes from "./routes/question.routes.js";
 import notificationRoutes from "./routes/notification.routes.js";
+import orderRoutes from "./routes/order.routes.js";
+import prescriptionRoutes from "./routes/prescription.routes.js";
+
 
 const app = express();
 app.use(cors());
@@ -24,6 +27,8 @@ app.use("/pharmacies", searchRoutes);
 app.use("/pharmacies", pharmacyRoutes);
 app.use("/questions", questionRoutes);
 app.use("/notifications", notificationRoutes);
+app.use("/orders", orderRoutes);
+app.use("/prescriptions", prescriptionRoutes);
 
 app.use(errorHandler);
 export default app;

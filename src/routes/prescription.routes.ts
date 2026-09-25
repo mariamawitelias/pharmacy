@@ -1,7 +1,8 @@
 import { Router, Request } from "express";
-import { PrismaClient } from "@prisma/client";
-import { auth as requireAuth, requireRole, validate } from "../middleware/auth.js";
-import ApiError from "../utils/ApiError.js";
+import { requireAuth, requireRole } from "../middleware/auth.js";
+import { validate, validateParams } from "../middleware/validate.js";
+import { AppError } from "../lib/errors.js";
+import { prisma } from "../lib/prisma.js";
 import {
   createPrescriptionSchema,
   inventoryDecrementSchema,
@@ -14,25 +15,13 @@ import {
   type InventoryDecrementInput,
 } from "../schemas/prescription.schema.js";
 
-declare global {
-  namespace Express {
-    interface Request {
-      user?: {
-        userId: string;
-        role: "PATIENT" | "DOCTOR" | "PHARMACIST" | "RIDER" | "ADMIN";
-      };
-    }
-  }
-}
-
 const router = Router();
-const prisma = new PrismaClient();
 
 router.post(
   "/",
   requireAuth,
   requireRole("DOCTOR"),
-  validate({ body: createPrescriptionSchema, params: undefined, query: undefined }),
+  validate(createPrescriptionSchema),
   async (req: Request, res, next) => {
     try {
       const payload = req.body as CreatePrescriptionInput;
@@ -65,10 +54,10 @@ router.get(
   "/:id",
   requireAuth,
   requireRole("DOCTOR", "PATIENT", "PHARMACIST", "ADMIN"),
-  validate({ body: undefined, params: prescriptionIdParamSchema, query: undefined }),
+  validateParams(prescriptionIdParamSchema),
   async (req: Request, res, next) => {
     try {
-      const { id } = req.params as { id: string };
+      const { id } = req.validatedParams as { id: string };
 
       res.json({
         data: {
@@ -87,10 +76,11 @@ router.patch(
   "/:id/status",
   requireAuth,
   requireRole("DOCTOR", "PHARMACIST", "PATIENT", "ADMIN"),
-  validate({ body: updatePrescriptionStatusSchema, params: prescriptionIdParamSchema, query: undefined }),
+  validateParams(prescriptionIdParamSchema),
+  validate(updatePrescriptionStatusSchema),
   async (req: Request, res, next) => {
     try {
-      const { id } = req.params as { id: string };
+      const { id } = req.validatedParams as { id: string };
       const { status } = req.body as { status: string };
 
       res.json({
@@ -111,10 +101,11 @@ router.post(
   "/:id/send",
   requireAuth,
   requireRole("DOCTOR"),
-  validate({ body: sendPrescriptionSchema, params: prescriptionIdParamSchema, query: undefined }),
+  validateParams(prescriptionIdParamSchema),
+  validate(sendPrescriptionSchema),
   async (req: Request, res, next) => {
     try {
-      const { id } = req.params as { id: string };
+      const { id } = req.validatedParams as { id: string };
       const payload = req.body as { pharmacyId: string; notes?: string };
 
       res.json({
@@ -135,10 +126,10 @@ router.post(
   "/:id/accept",
   requireAuth,
   requireRole("PHARMACIST"),
-  validate({ body: undefined, params: prescriptionIdParamSchema, query: undefined }),
+  validateParams(prescriptionIdParamSchema),
   async (req: Request, res, next) => {
     try {
-      const { id } = req.params as { id: string };
+      const { id } = req.validatedParams as { id: string };
 
       res.json({
         data: {
@@ -158,10 +149,11 @@ router.post(
   "/:id/reject",
   requireAuth,
   requireRole("PHARMACIST"),
-  validate({ body: rejectPrescriptionSchema, params: prescriptionIdParamSchema, query: undefined }),
+  validateParams(prescriptionIdParamSchema),
+  validate(rejectPrescriptionSchema),
   async (req: Request, res, next) => {
     try {
-      const { id } = req.params as { id: string };
+      const { id } = req.validatedParams as { id: string };
       const { reason } = req.body as { reason: string };
 
       res.json({
@@ -183,10 +175,10 @@ router.post(
   "/:id/ready",
   requireAuth,
   requireRole("PHARMACIST"),
-  validate({ body: undefined, params: prescriptionIdParamSchema, query: undefined }),
+  validateParams(prescriptionIdParamSchema),
   async (req: Request, res, next) => {
     try {
-      const { id } = req.params as { id: string };
+      const { id } = req.validatedParams as { id: string };
 
       res.json({
         data: {
@@ -206,14 +198,15 @@ router.post(
   "/pharmacies/:id/inventory/decrement",
   requireAuth,
   requireRole("PHARMACIST"),
-  validate({ body: inventoryDecrementSchema, params: prescriptionIdParamSchema, query: undefined }),
+  validateParams(prescriptionIdParamSchema),
+  validate(inventoryDecrementSchema),
   async (req: Request, res, next) => {
     try {
-      const { id } = req.params as { id: string };
+      const { id } = req.validatedParams as { id: string };
       const payload = req.body as InventoryDecrementInput;
 
       if (!payload?.medicineId || !payload.quantity) {
-        throw new ApiError(400, "INVALID_INVENTORY_PAYLOAD", "Invalid inventory update payload");
+        throw new AppError(400, "Invalid inventory update payload");
       }
 
       res.json({
@@ -235,10 +228,10 @@ router.get(
   "/users/:patientId/notify-targets",
   requireAuth,
   requireRole("DOCTOR", "PATIENT", "PHARMACIST", "ADMIN"),
-  validate({ body: undefined, params: notifyTargetsParamsSchema, query: undefined }),
+  validateParams(notifyTargetsParamsSchema),
   async (req: Request, res, next) => {
     try {
-      const { patientId } = req.params as { patientId: string };
+      const { patientId } = req.validatedParams as { patientId: string };
 
       const targets = [
         {
